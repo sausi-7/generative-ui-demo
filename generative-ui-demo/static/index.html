@@ -1,0 +1,691 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1.0">
+<title>Generative UI</title>
+<style>
+/* ═══════════════════════════════════════════════════════════
+   Design tokens — Claude uses var() to reference every color.
+   Change these to retheme the entire app including all widgets.
+   ═══════════════════════════════════════════════════════════ */
+:root {
+  --color-bg:               #f4f4f5;
+  --color-surface:          #ffffff;
+  --color-surface-elevated: #ededf0;
+  --color-text:             #18181b;
+  --color-text-muted:       #71717a;
+  --color-accent:           #7c3aed;
+  --color-accent-light:     #8b5cf6;
+  --color-border:           rgba(0,0,0,0.09);
+  --color-success:          #059669;
+  --color-warning:          #d97706;
+  --color-danger:           #dc2626;
+}
+
+/* ── Reset ── */
+*, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+
+body {
+  font-family: system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+  background: var(--color-bg);
+  color: var(--color-text);
+  height: 100vh;
+  display: grid;
+  grid-template-columns: 400px 1fr;
+  overflow: hidden;
+}
+
+/* ══════════════════════
+   Chat panel (left)
+   ══════════════════════ */
+#chat-panel {
+  display: flex;
+  flex-direction: column;
+  border-right: 1px solid var(--color-border);
+  overflow: hidden;   /* prevents children from bursting out of grid cell */
+  min-height: 0;
+}
+
+#chat-header {
+  padding: 0.9rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  flex-shrink: 0;
+  background: var(--color-surface);
+}
+
+.logo {
+  width: 28px;
+  height: 28px;
+  background: var(--color-accent);
+  border-radius: 8px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 13px;
+  color: #fff;
+  flex-shrink: 0;
+}
+
+#chat-header h1 { font-size: 14px; font-weight: 500; }
+
+#messages {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;      /* CRITICAL: without this, flex children won't scroll */
+  padding: 1.25rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+.msg-row             { display: flex; flex-direction: column; }
+.msg-row.user        { align-items: flex-end; }
+.msg-row.assistant   { align-items: flex-start; }
+
+.bubble {
+  padding: 0.6rem 0.95rem;
+  border-radius: 14px;
+  max-width: 90%;
+  font-size: 13.5px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+  word-break: break-word;
+}
+
+.bubble.user {
+  background: var(--color-accent);
+  color: #fff;
+  border-bottom-right-radius: 4px;
+}
+
+.bubble.assistant {
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-bottom-left-radius: 4px;
+}
+
+.bubble.status-msg {
+  background: transparent;
+  border: 1px dashed var(--color-border);
+  color: var(--color-text-muted);
+  font-size: 12px;
+  font-style: italic;
+  padding: 0.35rem 0.75rem;
+}
+
+/* Typing indicator */
+.typing {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  padding: 0.6rem 0.9rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  border-bottom-left-radius: 4px;
+  width: fit-content;
+}
+.dot {
+  width: 5px; height: 5px;
+  background: var(--color-text-muted);
+  border-radius: 50%;
+  animation: bounce 1.2s ease-in-out infinite;
+}
+.dot:nth-child(2) { animation-delay: .2s; }
+.dot:nth-child(3) { animation-delay: .4s; }
+
+@keyframes bounce {
+  0%, 60%, 100% { transform: translateY(0); }
+  30%           { transform: translateY(-5px); }
+}
+
+/* Input area */
+#input-area {
+  padding: 0.9rem;
+  border-top: 1px solid var(--color-border);
+  flex-shrink: 0;
+  background: var(--color-surface);
+}
+
+#input-box {
+  display: flex;
+  align-items: flex-end;
+  gap: 0.5rem;
+  background: var(--color-bg);
+  border: 1px solid var(--color-border);
+  border-radius: 12px;
+  padding: 0.45rem 0.45rem 0.45rem 0.75rem;
+  transition: border-color .15s;
+}
+#input-box:focus-within { border-color: var(--color-accent); }
+
+#user-input {
+  flex: 1;
+  background: none;
+  border: none;
+  outline: none;
+  color: var(--color-text);
+  font-size: 14px;
+  font-family: inherit;
+  line-height: 1.5;
+  resize: none;
+  max-height: 120px;
+  padding: 0.3rem 0;
+}
+#user-input::placeholder { color: var(--color-text-muted); }
+
+#send-btn {
+  width: 32px; height: 32px;
+  background: var(--color-accent);
+  border: none;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  transition: opacity .15s;
+}
+#send-btn:hover    { opacity: .85; }
+#send-btn:disabled { opacity: .4; cursor: not-allowed; }
+#send-btn svg { width: 15px; height: 15px; fill: #fff; }
+
+.hint {
+  font-size: 11px;
+  color: var(--color-text-muted);
+  text-align: center;
+  margin-top: 0.45rem;
+}
+
+/* ══════════════════════
+   Widget panel (right)
+   ══════════════════════ */
+#widget-panel {
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  min-height: 0;
+  background: var(--color-bg);
+}
+
+#widget-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.75rem 1.25rem;
+  border-bottom: 1px solid var(--color-border);
+  min-height: 46px;
+  flex-shrink: 0;
+  background: var(--color-surface);
+}
+
+#widget-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: var(--color-text-muted);
+}
+
+#widget-status {
+  margin-left: auto;
+  display: flex;
+  align-items: center;
+  gap: 0.45rem;
+  font-size: 12px;
+  color: var(--color-text-muted);
+}
+
+.status-dot {
+  width: 6px; height: 6px;
+  border-radius: 50%;
+  background: var(--color-text-muted);
+  flex-shrink: 0;
+}
+.status-dot.live {
+  background: var(--color-success);
+  animation: pulse 1.4s ease-in-out infinite;
+}
+@keyframes pulse { 0%,100%{opacity:1} 50%{opacity:.35} }
+
+/* Widget content area */
+#widget-root {
+  flex: 1;
+  overflow-y: auto;
+  min-height: 0;      /* CRITICAL: without this, flex children won't scroll */
+  padding: 1.25rem;
+  scrollbar-width: thin;
+  scrollbar-color: var(--color-border) transparent;
+}
+
+/* Empty state */
+#empty-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  height: 100%;
+  gap: 1rem;
+  color: var(--color-text-muted);
+  text-align: center;
+  padding: 2rem;
+}
+
+.empty-icon {
+  width: 52px; height: 52px;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 22px;
+}
+
+#empty-state p {
+  font-size: 14px;
+  line-height: 1.6;
+  max-width: 280px;
+}
+
+.chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  justify-content: center;
+  margin-top: 0.25rem;
+}
+.chip {
+  padding: 0.35rem 0.85rem;
+  background: var(--color-surface);
+  border: 1px solid var(--color-border);
+  border-radius: 20px;
+  font-size: 12px;
+  cursor: pointer;
+  transition: border-color .15s, color .15s;
+}
+.chip:hover {
+  border-color: var(--color-accent);
+  color: var(--color-accent);
+}
+
+/* Widget skeleton — shown while waiting for first widget_delta */
+.widget-skeleton {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  padding: 0.25rem;
+}
+.sk-block {
+  background: var(--color-surface-elevated);
+  border-radius: 8px;
+  animation: shimmer 1.5s ease-in-out infinite;
+}
+@keyframes shimmer {
+  0%, 100% { opacity: 0.45; }
+  50%       { opacity: 0.9;  }
+}
+
+/* Fade-in for morphdom new nodes — referenced directly by widget HTML */
+@keyframes _fadeIn {
+  from { opacity: 0; transform: translateY(5px); }
+  to   { opacity: 1; transform: none; }
+}
+</style>
+</head>
+<body>
+
+<!-- ════════════════ Chat Panel ════════════════ -->
+<div id="chat-panel">
+  <div id="chat-header">
+    <div class="logo">✦</div>
+    <h1>Generative UI</h1>
+  </div>
+
+  <div id="messages"></div>
+
+  <div id="input-area">
+    <div id="input-box">
+      <textarea id="user-input" rows="1"
+        placeholder="Ask for a chart, calculator, diagram..."></textarea>
+      <button id="send-btn" title="Send (Enter)">
+        <svg viewBox="0 0 24 24"><path d="M2 21l21-9L2 3v7l15 2-15 2v7z"/></svg>
+      </button>
+    </div>
+    <p class="hint">Enter to send · Shift+Enter for newline</p>
+  </div>
+</div>
+
+<!-- ════════════════ Widget Panel ════════════════ -->
+<div id="widget-panel">
+  <div id="widget-toolbar">
+    <span id="widget-name">No widget yet</span>
+    <div id="widget-status">
+      <div class="status-dot" id="status-dot"></div>
+      <span id="status-label">Idle</span>
+    </div>
+  </div>
+
+  <div id="widget-root">
+    <div id="empty-state">
+      <div class="empty-icon">⚡</div>
+      <p>Ask for any visual — charts, calculators, diagrams, timers, dashboards, or games.</p>
+      <div class="chips">
+        <div class="chip" onclick="quickSend('compound interest calculator')">Compound interest calculator</div>
+        <div class="chip" onclick="quickSend('bar chart of monthly sales Jan-Jun with made up data')">Sales bar chart</div>
+        <div class="chip" onclick="quickSend('pomodoro timer')">Pomodoro timer</div>
+        <div class="chip" onclick="quickSend('flowchart of how HTTP requests work')">HTTP flowchart</div>
+        <div class="chip" onclick="quickSend('dashboard with 4 metric cards and a line chart')">Dashboard</div>
+        <div class="chip" onclick="quickSend('color palette explorer with HSL sliders')">Color explorer</div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- morphdom: smooth DOM diffing during streaming -->
+<script src="https://cdn.jsdelivr.net/npm/morphdom@2.7.4/dist/morphdom-umd.min.js"></script>
+
+<script>
+// ── DOM refs ──────────────────────────────────────────────────────────────
+const messagesEl  = document.getElementById('messages');
+const inputEl     = document.getElementById('user-input');
+const sendBtn     = document.getElementById('send-btn');
+const widgetRoot  = document.getElementById('widget-root');
+const widgetName  = document.getElementById('widget-name');
+const statusDot   = document.getElementById('status-dot');
+const statusLabel = document.getElementById('status-label');
+
+// ── State ─────────────────────────────────────────────────────────────────
+let history     = [];   // {role, content}[] sent to backend
+let streaming   = false;
+let renderTimer = null;
+let pendingHTML = null;
+
+// ── Status bar ────────────────────────────────────────────────────────────
+function setStatus(active, text) {
+  statusDot.className = 'status-dot' + (active ? ' live' : '');
+  statusLabel.textContent = text;
+}
+
+// ── Message helpers ───────────────────────────────────────────────────────
+function addBubble(role, text) {
+  document.querySelector('.typing')?.remove();
+  const row = document.createElement('div');
+  row.className = `msg-row ${role}`;
+  const bub = document.createElement('div');
+  bub.className = `bubble ${role}`;
+  bub.textContent = text;
+  row.appendChild(bub);
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+  return bub;
+}
+
+function addStatus(text) {
+  const row = document.createElement('div');
+  row.className = 'msg-row assistant';
+  const bub = document.createElement('div');
+  bub.className = 'bubble status-msg';
+  bub.textContent = text;
+  row.appendChild(bub);
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+function showTyping() {
+  if (document.querySelector('.typing')) return;
+  const row = document.createElement('div');
+  row.className = 'msg-row assistant';
+  row.innerHTML = '<div class="typing"><div class="dot"></div><div class="dot"></div><div class="dot"></div></div>';
+  messagesEl.appendChild(row);
+  messagesEl.scrollTop = messagesEl.scrollHeight;
+}
+
+// ── Widget skeleton ───────────────────────────────────────────────────────
+/**
+ * Shown during the load_guidelines round-trip so the widget panel looks
+ * active before the first real HTML arrives.
+ */
+function showWidgetSkeleton() {
+  if (document.getElementById('widget-skeleton')) return;
+  document.getElementById('empty-state')?.remove();
+  const sk = document.createElement('div');
+  sk.id = 'widget-skeleton';
+  sk.className = 'widget-skeleton';
+  sk.innerHTML = `
+    <div class="sk-block" style="height:18px;width:42%"></div>
+    <div class="sk-block" style="height:220px"></div>
+    <div class="sk-block" style="height:12px;width:72%"></div>
+    <div class="sk-block" style="height:12px;width:55%"></div>
+  `;
+  widgetRoot.appendChild(sk);
+}
+
+function clearSkeleton() {
+  document.getElementById('widget-skeleton')?.remove();
+}
+
+// ── Widget rendering ──────────────────────────────────────────────────────
+
+/**
+ * morphdom diff: only changed DOM nodes are updated.
+ * New nodes get a CSS fade-in. Unchanged nodes are skipped entirely.
+ */
+function renderWidget(html) {
+  clearSkeleton();
+  document.getElementById('empty-state')?.remove();
+
+  const next = document.createElement('div');
+  next.id = 'widget-root';
+  next.innerHTML = html;
+
+  morphdom(widgetRoot, next, {
+    onBeforeElUpdated(from, to) {
+      if (from.isEqualNode(to)) return false;
+      return true;
+    },
+    onNodeAdded(node) {
+      if (node.nodeType === 1 && node.tagName !== 'STYLE' && node.tagName !== 'SCRIPT') {
+        node.style.animation = '_fadeIn 0.3s ease both';
+      }
+      return node;
+    }
+  });
+}
+
+/**
+ * Debounced render — batches widget_delta events to ~50ms so morphdom
+ * isn't thrashing on every single token but updates feel live.
+ */
+function scheduleRender(html) {
+  pendingHTML = html;
+  if (renderTimer) return;
+  renderTimer = setTimeout(() => {
+    renderTimer = null;
+    if (pendingHTML) renderWidget(pendingHTML);
+  }, 50);
+}
+
+/**
+ * Run <script> tags inside the widget.
+ * Browsers don't execute scripts set via innerHTML — we must replace them.
+ * Called only on widget_final (after streaming ends), never mid-stream.
+ */
+function runScripts() {
+  widgetRoot.querySelectorAll('script').forEach(old => {
+    const s = document.createElement('script');
+    if (old.src) { s.src = old.src; }
+    else { s.textContent = old.textContent; }
+    old.parentNode.replaceChild(s, old);
+  });
+}
+
+// ── Two-way bridge ────────────────────────────────────────────────────────
+/**
+ * Widgets call window.sendToAgent(data) to send interaction data back.
+ * The message is pushed to history here; doSend(null) signals "just fire
+ * the request, don't re-read or re-push anything".
+ */
+window.sendToAgent = function(data) {
+  const text = `[Widget interaction] ${JSON.stringify(data)}`;
+  history.push({ role: 'user', content: text });
+  addBubble('user', text);
+  doSend(null);  // null = history already updated
+};
+
+// ── Suggestion chips ──────────────────────────────────────────────────────
+function quickSend(text) {
+  doSend(text);
+}
+
+// ── Main send function ────────────────────────────────────────────────────
+/**
+ * overrideText === null    → called from sendToAgent; history already updated,
+ *                            skip the text-collection step entirely.
+ * overrideText === string  → use this text directly (quickSend / chip clicks).
+ * overrideText === undefined → read from the textarea (button / Enter key).
+ */
+async function doSend(overrideText) {
+  if (streaming) return;
+
+  // Collect + push the user message unless the caller already did it (null).
+  if (overrideText !== null) {
+    const text = overrideText !== undefined ? overrideText : inputEl.value.trim();
+    if (!text) return;
+    addBubble('user', text);
+    history.push({ role: 'user', content: text });
+    inputEl.value = '';
+    inputEl.style.height = 'auto';
+  }
+
+  streaming = true;
+  sendBtn.disabled = true;
+  setStatus(true, 'Thinking...');
+  showTyping();
+
+  let assistantBubble = null;
+  let assistantText   = '';
+  let skeletonShown   = false;
+
+  try {
+    const resp = await fetch('/chat', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ messages: history }),
+    });
+
+    if (!resp.ok) {
+      const msg = await resp.text().catch(() => `HTTP ${resp.status}`);
+      throw new Error(msg || `Server error ${resp.status}`);
+    }
+
+    const reader  = resp.body.getReader();
+    const decoder = new TextDecoder();
+    let buf = '';
+
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+
+      buf += decoder.decode(value, { stream: true });
+      const parts = buf.split('\n\n');
+      buf = parts.pop(); // keep incomplete trailing chunk
+
+      for (const part of parts) {
+        if (!part.startsWith('data: ')) continue;
+        let ev;
+        try { ev = JSON.parse(part.slice(6)); } catch { continue; }
+
+        switch (ev.type) {
+
+          // ── Claude text response ───────────────────────────────────
+          case 'text':
+            if (!assistantBubble) {
+              document.querySelector('.typing')?.remove();
+              assistantBubble = addBubble('assistant', '');
+            }
+            assistantText += ev.text;
+            assistantBubble.textContent = assistantText;
+            messagesEl.scrollTop = messagesEl.scrollHeight;
+            break;
+
+          // ── Internal status (e.g. "Loading chart guidelines...") ───
+          case 'status':
+            addStatus(ev.text);
+            setStatus(true, ev.text);
+            if (!skeletonShown) {
+              showWidgetSkeleton();
+              skeletonShown = true;
+            }
+            break;
+
+          // ── Widget HTML streaming in, token by token ───────────────
+          case 'widget_delta':
+            setStatus(true, 'Rendering...');
+            scheduleRender(ev.html);
+            break;
+
+          // ── Widget complete — final HTML + run scripts ─────────────
+          case 'widget_final':
+            if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
+            widgetName.textContent = ev.title || 'Widget';
+            renderWidget(ev.html);
+            runScripts();
+            setStatus(false, 'Ready');
+            break;
+
+          // ── Error ──────────────────────────────────────────────────
+          case 'error':
+            document.querySelector('.typing')?.remove();
+            addBubble('assistant', `Error: ${ev.text}`);
+            setStatus(false, 'Error');
+            break;
+
+          // ── Stream finished ────────────────────────────────────────
+          case 'done':
+            if (assistantText) {
+              history.push({ role: 'assistant', content: assistantText });
+            }
+            break;
+        }
+      }
+    }
+
+  } catch (err) {
+    document.querySelector('.typing')?.remove();
+    addBubble('assistant', `Connection error: ${err.message}`);
+    setStatus(false, 'Error');
+  } finally {
+    streaming      = false;
+    sendBtn.disabled = false;
+    pendingHTML    = null;
+    if (renderTimer) { clearTimeout(renderTimer); renderTimer = null; }
+    clearSkeleton(); // remove skeleton if no widget arrived (e.g. on error)
+    if (['Thinking...', 'Rendering...'].includes(statusLabel.textContent)) {
+      setStatus(false, 'Idle');
+    }
+  }
+}
+
+// ── Input auto-resize ─────────────────────────────────────────────────────
+inputEl.addEventListener('input', () => {
+  inputEl.style.height = 'auto';
+  inputEl.style.height = Math.min(inputEl.scrollHeight, 120) + 'px';
+});
+
+inputEl.addEventListener('keydown', e => {
+  if (e.key === 'Enter' && !e.shiftKey) {
+    e.preventDefault();
+    doSend();
+  }
+});
+
+sendBtn.addEventListener('click', () => doSend());
+</script>
+
+</body>
+</html>
