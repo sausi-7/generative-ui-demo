@@ -1,5 +1,48 @@
 # Generative UI: How an AI Builds Your Interface in Real Time
 
+## Getting Started
+
+### Prerequisites
+
+- Python 3.9+
+- An [Anthropic API key](https://console.anthropic.com/)
+
+### Installation
+
+```bash
+# Clone the repo
+git clone https://github.com/anthropics/generative-ui-demo.git
+cd generative-ui-demo/generative-ui-demo
+
+# Install dependencies
+pip install -r requirements.txt
+
+# Set your API key
+export ANTHROPIC_API_KEY=your_api_key_here
+```
+
+### Running the App
+
+```bash
+uvicorn server:app --reload
+```
+
+Then open [http://localhost:8000](http://localhost:8000) in your browser.
+
+### Try It Out
+
+Type any of these prompts in the chat to see generative UI in action:
+
+- `Give me a compound interest calculator`
+- `Show me a bar chart of monthly sales`
+- `Create a countdown timer`
+- `Draw a flowchart of the HTTP request lifecycle`
+- `Build a dashboard with key metrics`
+
+The widget will stream into the right panel in real time as Claude generates it. Widgets are interactive — buttons and inputs work, and clicking them sends data back to Claude for follow-up responses.
+
+---
+
 ## The Question That Changes Everything
 
 Imagine you go to a restaurant and order a custom dish. In one version of this restaurant, the chef writes down the recipe on a card and hands it to you — you then go home and cook it yourself. In another version, the chef cooks the meal right in front of you, and you watch each ingredient appear on the plate as it's added, in real time, until the dish is complete and placed before you.
