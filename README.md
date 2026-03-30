@@ -11,7 +11,7 @@
 
 ```bash
 # Clone the repo
-git clone https://github.com/anthropics/generative-ui-demo.git
+git clone https://github.com/sausi-7/generative-ui-demo.git
 cd generative-ui-demo/generative-ui-demo
 
 # Install dependencies
